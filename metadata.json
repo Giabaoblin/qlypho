@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
-  "requestFramePermissions": [],
+  "name": "ShiftSync AI",
+  "description": "Advanced Shift Management System with AI-powered scheduling, real-time tracking, and automated reporting.",
+  "requestFramePermissions": ["camera", "geolocation"],
   "majorCapabilities": []
 }

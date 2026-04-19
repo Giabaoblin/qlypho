@@ -1,0 +1,105 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information and role.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "manager", "staff"] },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Shift": {
+      "title": "Shift",
+      "description": "Scheduling details for a work shift.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": "string", "format": "date-time" },
+        "assignedTo": { "type": "array", "items": { "type": "string" } },
+        "locationId": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "published"] },
+        "type": { "type": "string", "enum": ["day", "night", "activity"] },
+        "description": { "type": "string" }
+      },
+      "required": ["title", "startTime", "endTime", "status"]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Clock-in and clock-out logs.",
+      "type": "object",
+      "properties": {
+        "shiftId": { "type": "string" },
+        "userId": { "type": "string" },
+        "checkInTime": { "type": "string", "format": "date-time" },
+        "checkOutTime": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["on-time", "late", "absent", "in-progress"] },
+        "photoURL": { "type": "string" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" }
+          }
+        }
+      },
+      "required": ["shiftId", "userId", "status"]
+    },
+    "Request": {
+      "title": "Request",
+      "description": "Leave or shift swap requests.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["leave", "swap"] },
+        "reason": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "shiftId": { "type": "string" },
+        "substituteId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "status"]
+    },
+    "Location": {
+      "title": "Location",
+      "description": "Predefined check-in locations.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "address": { "type": "string" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "radius": { "type": "number" }
+      },
+      "required": ["name", "latitude", "longitude", "radius"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Stores user profile and access levels."
+    },
+    "/shifts/{shiftId}": {
+      "schema": "Shift",
+      "description": "Stores shift schedules."
+    },
+    "/attendance/{attendanceId}": {
+      "schema": "Attendance",
+      "description": "Stores time tracking logs."
+    },
+    "/requests/{requestId}": {
+      "schema": "Request",
+      "description": "Stores leave and swap requests."
+    },
+    "/locations/{locationId}": {
+      "schema": "Location",
+      "description": "Stores valid check-in coordinates."
+    }
+  }
+}

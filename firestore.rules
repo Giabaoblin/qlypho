@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 1. Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function getUserData(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    function hasRole(role) {
+      return isSignedIn() && getUserData(request.auth.uid).role == role;
+    }
+
+    function isAdmin() {
+      return hasRole('admin');
+    }
+
+    function isManager() {
+      return hasRole('manager') || isAdmin();
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 2. Validation Blueprints
+    function isValidUser(data) {
+      return data.uid == request.auth.uid
+        && data.email is string && data.email.size() <= 256
+        && (data.displayName == null || (data.displayName is string && data.displayName.size() <= 128))
+        && data.role in ['admin', 'manager', 'staff'];
+    }
+
+    function isValidShift(data) {
+      return data.title is string && data.title.size() <= 200
+        && data.startTime is timestamp
+        && data.endTime is timestamp
+        && data.status in ['draft', 'published']
+        && (data.type == null || data.type in ['day', 'night', 'activity']);
+    }
+
+    function isValidAttendance(data) {
+      return data.userId == request.auth.uid
+        && data.shiftId is string && data.shiftId.size() <= 128
+        && data.status in ['on-time', 'late', 'absent', 'in-progress']
+        && (data.checkInTime == null || data.checkInTime == request.time);
+    }
+
+    function isValidRequest(data) {
+      return data.userId == request.auth.uid
+        && data.type in ['leave', 'swap']
+        && data.status in ['pending', 'approved', 'rejected']
+        && data.shiftId is string;
+    }
+
+    // 3. Collection Rules
+    
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isManager();
+      allow create: if isSignedIn() && isValidUser(incoming()) && incoming().role == 'staff';
+      allow update: if isSignedIn() && (
+        (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL'])) ||
+        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['role']))
+      );
+    }
+
+    match /shifts/{shiftId} {
+      allow read: if isSignedIn() && (existing().status == 'published' || isManager());
+      allow create: if isManager() && isValidShift(incoming());
+      allow update: if isManager() && isValidShift(incoming());
+      allow delete: if isAdmin();
+    }
+
+    match /attendance/{attendanceId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isManager());
+      allow create: if isSignedIn() && isValidAttendance(incoming()) && exists(/databases/$(database)/documents/shifts/$(incoming().shiftId));
+      allow update: if isSignedIn() && (
+        (resource.data.userId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['checkOutTime', 'status']) && isValidAttendance(incoming())) ||
+        (isManager() && incoming().diff(existing()).affectedKeys().hasOnly(['status']))
+      );
+    }
+
+    match /requests/{requestId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isManager());
+      allow create: if isSignedIn() && isValidRequest(incoming()) && incoming().status == 'pending';
+      allow update: if isSignedIn() && (
+        (isOwner(resource.data.userId) && existing().status == 'pending' && incoming().diff(existing()).affectedKeys().hasOnly(['reason', 'substituteId']) && isValidRequest(incoming())) ||
+        (isManager() && incoming().diff(existing()).affectedKeys().hasOnly(['status']))
+      );
+    }
+
+    match /locations/{locationId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+  }
+}
